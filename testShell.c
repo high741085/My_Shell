@@ -1,0 +1,73 @@
+#include <unistd.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+
+int strSplit(const char *, char **, char);
+
+int main(int argc, char** argv) {
+    int exit_status;
+    int fd[2];
+    char buffer[BUFSIZ];
+    char *arguments[BUFSIZ];
+
+    while (1) {
+        pipe(fd);   //Need to pipe whenever a new child process is created.
+        pid_t myPID = fork();
+
+        if (myPID == -1) {
+            perror("fork()");
+            exit(-1);
+        } else if (myPID == 0) {
+            // printf("[Child] PID: %d\n", getpid());
+            close(fd[0]);
+            //Print prompt
+            printf("> ");
+            fgets(buffer, sizeof(buffer), stdin);
+            argc = strSplit(buffer, arguments, ' ');
+            if (strcmp(arguments[0], "exit") == 0) {
+                write(fd[1], arguments[0], sizeof(arguments[0]));
+            }
+            close(fd[1]);
+            execvp(arguments[0], arguments);
+            exit(0);
+        } else {
+            close(fd[1]);
+            // printf("[Parent] PID: %d\n", getpid());
+            wait(&exit_status);
+            read(fd[0], buffer, sizeof(buffer));
+            if (strcmp(buffer, "exit") == 0) {
+                break;
+            }
+        }
+    }
+    return 0;
+}
+
+int strSplit(const char *input, char **substrings, char sep) {
+    int start = 0, i = 0, substringsIndex = 0, charCounter;
+    while (input[i] != '\n') {
+        if (input[i] == sep) {
+            charCounter = 0;
+            for (int j = start; j < i; ++j, ++charCounter) {
+                substrings[substringsIndex][charCounter] = input[j];
+            }
+            substrings[substringsIndex][charCounter] = '\0';
+            start = i+1;
+            ++substringsIndex;
+        }
+        ++i;
+    }
+    charCounter = 0;
+    for (int j = start; j < i; ++j) {
+        substrings[substringsIndex][charCounter] = input[j];
+        charCounter++;
+    }
+    substrings[substringsIndex][charCounter] = '\0';
+    ++substringsIndex;
+    substrings[substringsIndex] = 0;
+    return substringsIndex;
+}
