@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
             //If the command is "exit", then exit shell
             if (strcmp(arguments[0], "exit") == 0) {
                 write(fd[1], arguments[0], sizeof(arguments[0]));
+                close(fd[1]);
             }
             //Check is there any ">". If there is ">", then set output to the file given by user
             int redir_index = findStringIndex(arguments, ">", argc);
@@ -43,7 +44,6 @@ int main(int argc, char** argv) {
                 close(fd[1]);
                 arguments[redir_index] = NULL;
             }
-
             // printf("[Child] arguments[0] = %s.\n", arguments[0]);
             execvp(arguments[0], arguments);
             // printf("[Child] command done\n");

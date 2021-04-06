@@ -10,21 +10,19 @@
 #define MAX_CMD_AMOUNT 1024
 #define MAX_ARG_AMOUNT 1024
 
-typedef struct fd_pair {
-    int fd[2];
-} fd_pair;
-
-fd_pair io_fd[1024];
 int argvAmount;
 char *tempFileFormat = ".temp";
 
 char *readCommand();
 char ***commandSequenceToArgvs(char *);
-int findStringIndex(char **, char *);
+int findStringIndex(char **, char *, int);
 int execCommand(char ***);
 void createProc(char **, int, int);
+void redirect_to(char **, int, int);
 
-int main(int argc, char** argv) {
+
+int main(int argc, char** argv) 
+{
     while (1) {
         //Declaration
         char ***argvs; 
@@ -69,12 +67,23 @@ void createProc(char **argv, int fd_in, int fd_out) {
             dup2(fd_out, STDOUT_FILENO);
             close(fd_out);
         }
-        int redir_index = findStringIndex(argv, ">");
+
+        int redir_index = findStringIndex(argv, "<", 0);
         if (redir_index != -1) {
-            fd_out = creat(argv[redir_index + 1], 0644);
-            dup2(fd_out, STDOUT_FILENO);
-            close(fd_out);
+            fd_in = open(argv[redir_index + 1], O_RDONLY);
+            dup2(fd_in, STDIN_FILENO);
+            close(fd_in);
             argv[redir_index] = NULL;
+        }
+
+        // for (int i = 1; argv[redir_index + i]; ++i) {
+        //     printf("[Child] argv:%s.\n", argv[redir_index + i]);
+        // }
+
+        if (findStringIndex(argv, ">", redir_index + 1) > -1) {
+            printf("Redirect to...\n");
+            redirect_to(argv, fd_out, redir_index + 1);
+            exit(1);
         }
 
         int exit_status = execvp(argv[0], argv);
@@ -89,9 +98,8 @@ void createProc(char **argv, int fd_in, int fd_out) {
 
 int execCommand(char ***argvs) {
     int exit_status = 0;
-
-    memset(io_fd, 0, sizeof(io_fd));
-    
+    int fd[2], fd_in = STDIN_FILENO, fd_out = STDOUT_FILENO;
+    pipe(fd);
     
     for (int C = 0; C < MAX_CMD_AMOUNT; ++C) {
         char **argv = argvs[C];
@@ -105,17 +113,16 @@ int execCommand(char ***argvs) {
             break;
         }
         // set fd_in and fd_out
-        if (C == 0) {
-            if (argvs[C+1]) {
-                
-            } else {
-                io_fd[0].fd[0] = STDIN_FILENO;
-                io_fd[0].fd[1] = STDOUT_FILENO;
-            }
-        } else {
-            
+        if (C > 0) {
+            fd_in = fd[0];
         }
-        createProc(argv, io_fd[C].fd[0], io_fd[C].fd[1]);
+        if (C < MAX_CMD_AMOUNT && argvs[C + 1] != NULL) {
+            fd_out = fd[1];
+        }
+        createProc(argv, fd_in, fd_out);
+
+        if (fd_in != STDIN_FILENO) close(fd_in);
+        if (fd_out != STDOUT_FILENO) close(fd_out);
     }
     
     return exit_status;
@@ -151,9 +158,31 @@ char ***commandSequenceToArgvs(char *input) {
     return argvs;
 }
 
-int findStringIndex(char **args, char *target) {
+void redirect_to(char **argv, int fd_out, int start) {
+    char *cmd = argv[0];
+    int i = start;
+    while (argv[i]) {
+        if (strcmp(argv[i], ">") == 0) {
+            fd_out = creat(argv[i + 1], 0644);
+            dup2(fd_out, STDOUT_FILENO);
+            close(fd_out);
+            argv[i] = NULL;
+            ++i;
+            printf("[redirect_to] %d\n", i);
+
+            pid_t pid = fork();
+            if (pid == 0) {
+                execvp(cmd, argv);
+            }
+        } else {
+            ++i;
+        }
+    }
+}
+
+int findStringIndex(char **args, char *target, int start) {
     int argsIndex = -1;
-    for (int i = 0; args[i]; ++i) {
+    for (int i = start; args[i]; ++i) {
         if (strcmp(args[i], target) == 0) {
             argsIndex = i;
             break;
