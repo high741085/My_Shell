@@ -101,8 +101,8 @@ int execCommand(char ***argvs) {
     int fd[2], fd_in = STDIN_FILENO, fd_out = STDOUT_FILENO;
     pipe(fd);
     
-    for (int C = 0; C < MAX_CMD_AMOUNT; ++C) {
-        char **argv = argvs[C];
+    for (int argvCnt = 0; argvCnt < MAX_CMD_AMOUNT; ++argvCnt) {
+        char **argv = argvs[argvCnt];
         
         if (!argv) {
             break;
@@ -113,10 +113,10 @@ int execCommand(char ***argvs) {
             break;
         }
         // set fd_in and fd_out
-        if (C > 0) {
+        if (argvCnt > 0) {
             fd_in = fd[0];
         }
-        if (C < MAX_CMD_AMOUNT && argvs[C + 1] != NULL) {
+        if (argvCnt < MAX_CMD_AMOUNT && argvs[argvCnt + 1] != NULL) {
             fd_out = fd[1];
         }
         createProc(argv, fd_in, fd_out);
